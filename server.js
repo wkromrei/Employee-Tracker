@@ -4,7 +4,7 @@ const { Pool } = require('pg');
 const pool = new Pool({
   host: 'localhost',
   user: 'postgres',
-  password: 'Drumset#3', // ! Change this to your own password
+  password: 'password3',
   database: 'employees_db',
 });
 
@@ -105,13 +105,20 @@ async function showAllRoles() {
   }
 }
 
+async function getDepartments() {
+  try {
+    const res = await pool.query('SELECT name FROM departments');
+    return res.rows.map(row => row.name);
+  } catch (err) {
+    console.error("Error fetching departments from database", err);
+    return [];
+  }
+}
+
 async function addRole() {
+  const departments = await getDepartments(); // Fetch department names dynamically
+
   const answers = await inquirer.prompt([
-    {
-      type: 'input',
-      message: 'What is the ID# of the role (unused previously)?',
-      name: 'roleId'
-    },
     {
       type: 'input',
       message: 'What is the name of the role?',
@@ -119,21 +126,29 @@ async function addRole() {
     },
     {
       type: 'input',
-      message: 'What is salary of the role?',
+      message: 'What is the salary of the role?',
       name: 'salaryAmount'
     },
     {
       type: 'list',
       message: 'What department does the role belong to?',
       name: 'department',
-      choices: ['1', '2', '3', '4']
+      choices: departments
     },
   ]);
 
   try {
+    // Ensure salary is parsed to a number
+    const salary = parseFloat(answers.salaryAmount);
+    
+    // Find department ID based on department name
+    const res = await pool.query('SELECT id FROM departments WHERE name = $1', [answers.department]);
+    const departmentId = res.rows[0].id;
+
+    // Insert new role
     await pool.query(
-      'INSERT INTO roles (id, title, salary, department) VALUES ($1, $2, $3, $4)', 
-      [answers.roleId, answers.roleName, answers.salaryAmount, answers.department]
+      'INSERT INTO roles (title, salary, department) VALUES ($1, $2, $3)', 
+      [answers.roleName, salary, departmentId]
     );
     console.log(`Added ${answers.roleName} to the database`);
   } catch (err) {
